@@ -59,15 +59,12 @@
         self.label = [[UILabel alloc] init];
         [self addSubview:self.label];
         self.label.textAlignment = NSTextAlignmentCenter;
-        self.label.textColor = [UIColor blackColor];
-        self.label.font = [UIFont systemFontOfSize:11.];
         self.label.text = [self.delegate titleForEntity:entityObj];
     
         self.button = [UIButton buttonWithType:UIButtonTypeCustom];
         [self addSubview:self.button];
         [self.button addTarget:self action:@selector(buttonTapped:) forControlEvents:UIControlEventTouchUpInside];
         
-        self.backgroundColor = [UIColor lightGrayColor];
         self.clipsToBounds = YES;
         self.layer.cornerRadius = 3.;
     }
@@ -84,7 +81,8 @@
 
 - (CGSize)intrinsicContentSize
 {
-    return CGSizeMake([self.label gv_widthForContent],[self.label.font gv_heightForFont]);
+    CGFloat widthForContent = [self.label gv_widthForContent];
+    return CGSizeMake(widthForContent,[self.label.font gv_heightForFont]);
 }
 
 - (void)buttonTapped:(id)sender
@@ -166,6 +164,10 @@
     [self.resolvedEntities addObject:entityObj];
     
     GVEntityTokenView *newView = [[GVEntityTokenView alloc] initWithObj:entityObj delegate:self];
+    newView.label.font = self.entityFont;
+    newView.label.textColor = self.entityTextColor;
+    newView.backgroundColor = self.entityBackgroundColor;
+    
     [self.resolvedEntityViews addObject:newView];
     
     [self layoutResolvedEntitiesAndTextFieldAnimated:YES];
@@ -287,6 +289,7 @@
     CGSize lastPillIntrinisic;
     BOOL first = YES;
     
+    int index = 0;
     for (GVEntityTokenView *entityView in self.resolvedEntityViews){
         CGFloat xForPill = !first ? lastPillX+lastPillIntrinisic.width+self.pillSpacing : 0;
         CGFloat yForPill = !first ? lastPillY : self.verticalFramePad;
@@ -300,13 +303,17 @@
             yForPill += self.pillHeight+self.pillRowSpacing;
         }
         
-        pillSize.width += self.pillLeftRightPad * 2;
+        pillSize.width += (self.pillLeftRightPad * 2);
+        
+        NSLog(@"index = %@, width = %@",@(index),@(pillSize.width));
         
         frameBlock(entityView,xForPill,yForPill,pillSize.width);
         
         lastPillX = xForPill;
         lastPillY = yForPill;
         lastPillIntrinisic = pillSize;
+        
+        index++;
     }
 }
 
@@ -377,8 +384,15 @@
 - (UIFont *)textFieldFont
 {
     if (_textFieldFont == nil)
-        return [UIFont systemFontOfSize:11];
+        return [UIFont systemFontOfSize:13];
     return _textFieldFont;
+}
+
+- (UIFont *)entityFont
+{
+    if (_entityFont == nil)
+        return [UIFont systemFontOfSize:13];
+    return _entityFont;
 }
 
 - (UIColor *)textFieldTextColor
@@ -400,6 +414,20 @@
     if (_entitySelectedBackgroundColor == nil)
         return [UIColor redColor];
     return _entitySelectedBackgroundColor;
+}
+
+- (UIColor *)entityTextColor
+{
+    if (_entityTextColor == nil)
+        return [UIColor whiteColor];
+    return _entityTextColor;
+}
+
+- (UIColor *)entitySelectedTextColor
+{
+    if (_entitySelectedTextColor == nil)
+        return [UIColor whiteColor];
+    return _entitySelectedTextColor;
 }
 
 #pragma mark - BackspaceDetectTextFieldDeleate
@@ -428,11 +456,22 @@
         if ([self.resolvedEntityViews count] > 0){
             self.selectedEntity = [self.resolvedEntityViews lastObject];
 
-            self.selectedEntity.backgroundColor = self.entitySelectedBackgroundColor;
+            [self setSelectedState:YES onEntityView:self.selectedEntity];
             
             if ([self.delegate respondsToSelector:@selector(entitySearchTextView:didSelectEntityView:withEntityObj:)])
                 [self.delegate entitySearchTextView:self didSelectEntityView:self.selectedEntity withEntityObj:self.selectedEntity.obj];
         }
+    }
+}
+
+- (void)setSelectedState:(BOOL)selected onEntityView:(GVEntityTokenView *)entityView
+{
+    if (selected){
+        entityView.backgroundColor = self.entitySelectedBackgroundColor;
+        entityView.label.textColor = self.entitySelectedTextColor;
+    } else {
+        entityView.backgroundColor = self.entityBackgroundColor;
+        entityView.label.textColor = self.entityTextColor;
     }
 }
 
@@ -448,13 +487,13 @@
 - (void)resolvedEntityViewWasTapped:(GVEntityTokenView *)entityView
 {
     if (self.selectedEntity == nil || self.selectedEntity != entityView){
-        entityView.backgroundColor = self.entitySelectedBackgroundColor;
+        [self setSelectedState:YES onEntityView:entityView];
         
         if ([self.delegate respondsToSelector:@selector(entitySearchTextView:didSelectEntityView:withEntityObj:)])
             [self.delegate entitySearchTextView:self didSelectEntityView:entityView withEntityObj:entityView.obj];
         
         if (self.selectedEntity){
-            self.selectedEntity.backgroundColor = self.entityBackgroundColor;
+            [self setSelectedState:NO onEntityView:self.selectedEntity];
             
             if ([self.delegate respondsToSelector:@selector(entitySearchTextView:didUnselectEntityView:withEntityObj:)])
                 [self.delegate entitySearchTextView:self didUnselectEntityView:self.selectedEntity withEntityObj:self.selectedEntity.obj];
@@ -462,7 +501,7 @@
         
         self.selectedEntity = entityView;
     } else if (self.selectedEntity == entityView){
-        entityView.backgroundColor = self.entityBackgroundColor;
+        [self setSelectedState:NO onEntityView:entityView];
 
         if ([self.delegate respondsToSelector:@selector(entitySearchTextView:didUnselectEntityView:withEntityObj:)])
             [self.delegate entitySearchTextView:self didUnselectEntityView:self.selectedEntity withEntityObj:self.selectedEntity.obj];

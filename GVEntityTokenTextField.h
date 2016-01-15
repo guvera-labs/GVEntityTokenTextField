@@ -42,9 +42,12 @@
 @property (nonatomic,assign) CGFloat minimumTextEntryWidth;
 @property (nonatomic,strong) NSString *placeholderText;
 @property (nonatomic,strong) UIFont *textFieldFont;
+@property (nonatomic,strong) UIFont *entityFont;
 @property (nonatomic,strong) UIColor *textFieldTextColor;
 @property (nonatomic,strong) UIColor *entityBackgroundColor;
 @property (nonatomic,strong) UIColor *entitySelectedBackgroundColor;
+@property (nonatomic,strong) UIColor *entityTextColor;
+@property (nonatomic,strong) UIColor *entitySelectedTextColor;
 @property (nonatomic,assign) NSTimeInterval searchAsYouTypeDelaySeconds;
 
 @property (readonly) CGFloat startingFrameHeight;
