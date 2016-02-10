@@ -17,7 +17,8 @@
 @end
 @interface BackspaceDetectTextField : UITextField<UIKeyInput>
 
-@property (nonatomic, assign) id<BackspaceDetectTextFieldDeleate> backspaceDelegate;
+@property (nonatomic,assign) id<BackspaceDetectTextFieldDeleate> backspaceDelegate;
+@property (nonatomic,assign) BOOL hideCursor;
 
 @end
 
@@ -31,10 +32,25 @@
         [self.backspaceDelegate textFieldDidBackspaceOnEmpty:self];
 }
 
+- (CGRect)caretRectForPosition:(UITextPosition *)position
+{
+    if (self.hideCursor) {
+        return CGRectZero;
+    }
+    return [super caretRectForPosition:position];;
+}
+
+- (void)setHideCursor:(BOOL)hideCursor
+{
+    _hideCursor = hideCursor;
+    
+    [self layoutIfNeeded];
+}
+
 @end
 @protocol GVEntityTokenViewProtocol <NSObject>
 
-- (NSString *)titleForEntity:(id)entityObj;
+- (NSString *)titleForEntity:(id)entityObj entityTokenTextView:(GVEntityTokenView *)tokenView;
 - (void)resolvedEntityViewWasTapped:(GVEntityTokenView *)entityView;
 
 @end
@@ -43,15 +59,17 @@
 @property (nonatomic,strong) id obj;
 @property (nonatomic,weak) id<GVEntityTokenViewProtocol> delegate;
 
-- (instancetype)initWithObj:(id)entityObj delegate:(id<GVEntityTokenViewProtocol>)delegate;
+- (instancetype)initWithObj:(id)entityObj delegate:(id<GVEntityTokenViewProtocol>)delegate itemNumber:(NSInteger)itemNumber;
 
 @end
 @implementation GVEntityTokenView
 
-- (instancetype)initWithObj:(id)entityObj delegate:(id<GVEntityTokenViewProtocol>)delegate
+- (instancetype)initWithObj:(id)entityObj delegate:(id<GVEntityTokenViewProtocol>)delegate itemNumber:(NSInteger)itemNumber
 {
     self = [super initWithFrame:CGRectZero];
     if (self) {
+        
+        self.tag = itemNumber;
         
         self.obj = entityObj;
         self.delegate = delegate;
@@ -59,7 +77,7 @@
         self.label = [[UILabel alloc] init];
         [self addSubview:self.label];
         self.label.textAlignment = NSTextAlignmentCenter;
-        self.label.text = [self.delegate titleForEntity:entityObj];
+        self.label.text = [self.delegate titleForEntity:entityObj entityTokenTextView:self];
     
         self.button = [UIButton buttonWithType:UIButtonTypeCustom];
         [self addSubview:self.button];
@@ -111,6 +129,10 @@
 @end
 @implementation GVEntityTokenTextField
 
+@synthesize textFieldFont=_textFieldFont;
+@synthesize textFieldCursorColor=_textFieldCursorColor;
+@synthesize textFieldTextColor=_textFieldTextColor;
+
 - (instancetype)initWithDelegate:(id<EntitySearchTextViewDelegate>)delegate
 {
     self = [super init];
@@ -129,9 +151,11 @@
         [self.resolvedEntitiesScroll addSubview:self.textField];
         self.textField.backspaceDelegate = self;
         self.textField.font = self.textFieldFont;
+        self.textField.tintColor = self.textFieldCursorColor;
         self.textField.textColor = self.textFieldTextColor;
         self.textField.clearButtonMode = UITextFieldViewModeNever;
         self.textField.delegate = self;
+        self.textField.returnKeyType = UIReturnKeyDone;
         
         self.resolvedEntities = [[NSMutableArray alloc] init];
         self.resolvedEntityViews = [[NSMutableArray alloc] init];
@@ -154,7 +178,7 @@
 {
     [self.searchTimer invalidate];
     
-    if (self.currentQuery)
+    if ([self.currentQuery length] > 0)
         if ([self.delegate respondsToSelector:@selector(entitySearchTextView:searchAsYouTypeTriggeredWithQuery:)])
             [self.delegate entitySearchTextView:self searchAsYouTypeTriggeredWithQuery:self.currentQuery];
 }
@@ -163,7 +187,7 @@
 {
     [self.resolvedEntities addObject:entityObj];
     
-    GVEntityTokenView *newView = [[GVEntityTokenView alloc] initWithObj:entityObj delegate:self];
+    GVEntityTokenView *newView = [[GVEntityTokenView alloc] initWithObj:entityObj delegate:self itemNumber:[self.resolvedEntities count]-1];
     newView.label.font = self.entityFont;
     newView.label.textColor = self.entityTextColor;
     newView.backgroundColor = self.entityBackgroundColor;
@@ -185,6 +209,9 @@
         [removedEntityView removeFromSuperview];
         [self.resolvedEntityViews removeObjectAtIndex:removeIndex];
         
+        if (entityObj == self.selectedEntity)
+            self.selectedEntity = nil;
+        
         if ([self.delegate respondsToSelector:@selector(entitySearchTextView:didDeleteEntityView:entityObj:internalDelete:)])
             [self.delegate entitySearchTextView:self didDeleteEntityView:removedEntityView entityObj:entityObj internalDelete:NO];
         
@@ -192,9 +219,30 @@
     }
 }
 
+- (void)removeAllEntities
+{
+    [self.resolvedEntities removeAllObjects];
+    
+    for (GVEntityTokenView *tokenView in self.resolvedEntityViews){
+        [tokenView removeFromSuperview];
+    }
+    [self.resolvedEntityViews removeAllObjects];
+    [self layoutResolvedEntitiesAndTextFieldAnimated:YES];
+    
+    self.selectedEntity = nil;
+}
+
 - (void)showKeyboardButtonPressed:(id)sender
 {
+    [self bringSubviewToFront:self.textField];
+    self.textField.hidden = NO;
+    self.textField.alpha = 1;
+    
     [self.textField becomeFirstResponder];
+    
+    if (self.selectedEntity) {
+        [self resolvedEntityViewWasTapped:self.selectedEntity];
+    }
     
     [self scrollToBottomAnimated:YES];
 }
@@ -213,7 +261,12 @@
 
 - (void)layoutResolvedEntitiesAndTextField
 {
+    NSString *queryTextBefore = self.textField.text;
     self.textField.text = @"";
+    
+    if ([queryTextBefore length] > 0 && [self.delegate respondsToSelector:@selector(entitySearchTextViewDidClearSearchText:)]) {
+        [self.delegate entitySearchTextViewDidClearSearchText:self];
+    }
     
     __block UIView *lastView = nil;
     
@@ -317,6 +370,11 @@
     }
 }
 
+- (NSString *)currentSearchQuery
+{
+    return self.textField.text;
+}
+
 #pragma mark - layout and other settings
 
 - (CGFloat)startingFrameHeight
@@ -381,6 +439,26 @@
         self.textField.placeholder = _placeholderText;
 }
 
+- (void)setTextFieldFont:(UIFont *)textFieldFont
+{
+    _textFieldFont = textFieldFont;
+    self.textField.font = textFieldFont;
+    
+    [self layoutResolvedEntitiesAndTextField];
+}
+
+- (void)setTextFieldCursorColor:(UIColor *)textFieldCursorColor
+{
+    _textFieldCursorColor = textFieldCursorColor;
+    self.textField.tintColor = textFieldCursorColor;
+}
+
+- (void)setTextFieldTextColor:(UIColor *)textFieldTextColor
+{
+    _textFieldTextColor = textFieldTextColor;
+    self.textField.textColor = textFieldTextColor;
+}
+
 - (UIFont *)textFieldFont
 {
     if (_textFieldFont == nil)
@@ -400,6 +478,13 @@
     if (_textFieldTextColor == nil)
         return [UIColor blackColor];
     return _textFieldTextColor;
+}
+
+- (UIColor *)textFieldCursorColor
+{
+    if (_textFieldCursorColor == nil)
+        return [UIColor grayColor];
+    return _textFieldCursorColor;
 }
 
 - (UIColor *)entityBackgroundColor
@@ -430,40 +515,6 @@
     return _entitySelectedTextColor;
 }
 
-#pragma mark - BackspaceDetectTextFieldDeleate
-
-- (void)textFieldDidBackspaceOnEmpty:(BackspaceDetectTextField *)textField
-{
-    [self scrollToBottomAnimated:YES];
-    
-    if (self.selectedEntity){
-        NSInteger index = [self.resolvedEntities indexOfObject:self.selectedEntity.obj];
-        if (index != NSNotFound){
-            [self.resolvedEntities removeObjectAtIndex:index];
-            GVEntityTokenView *viewToRemove = [self.resolvedEntityViews objectAtIndex:index];
-            [self.resolvedEntityViews removeObjectAtIndex:index];
-            [viewToRemove removeFromSuperview];
-            
-            if ([self.delegate respondsToSelector:@selector(entitySearchTextView:didDeleteEntityView:entityObj:internalDelete:)])
-                [self.delegate entitySearchTextView:self didDeleteEntityView:viewToRemove entityObj:viewToRemove.obj internalDelete:YES];
-            
-            self.selectedEntity = nil;
-            
-            [self layoutResolvedEntitiesAndTextFieldAnimated:YES];
-        }
-    } else {
-        // if none selected, select the last
-        if ([self.resolvedEntityViews count] > 0){
-            self.selectedEntity = [self.resolvedEntityViews lastObject];
-
-            [self setSelectedState:YES onEntityView:self.selectedEntity];
-            
-            if ([self.delegate respondsToSelector:@selector(entitySearchTextView:didSelectEntityView:withEntityObj:)])
-                [self.delegate entitySearchTextView:self didSelectEntityView:self.selectedEntity withEntityObj:self.selectedEntity.obj];
-        }
-    }
-}
-
 - (void)setSelectedState:(BOOL)selected onEntityView:(GVEntityTokenView *)entityView
 {
     if (selected){
@@ -477,10 +528,10 @@
 
 #pragma mark - ResolvedEntityViewProtocol
 
-- (NSString *)titleForEntity:(id)entityObj
+- (NSString *)titleForEntity:(id)entityObj entityTokenTextView:(GVEntityTokenView *)tokenView
 {
-    if ([self.delegate respondsToSelector:@selector(entitySearchTextView:titleForEntity:)])
-        return [self.delegate entitySearchTextView:self titleForEntity:entityObj];
+    if ([self.delegate respondsToSelector:@selector(entitySearchTextView:titleForEntity:itemNumber:)])
+        return [self.delegate entitySearchTextView:self titleForEntity:entityObj itemNumber:tokenView.tag];
     return [entityObj stringValue];
 }
 
@@ -510,19 +561,87 @@
     }
 }
 
-#pragma mark - UITextFieldDelegate
+- (void)setSelectedEntity:(GVEntityTokenView *)selectedEntity
+{
+    _selectedEntity = selectedEntity;
+    
+    if (_selectedEntity) {
+        // hide text field
+        self.textField.alpha = 0;
+        [self bringSubviewToFront:self.showKeyboardButton];
+    } else {
+        // show text field
+        self.textField.alpha = 1;
+        [self bringSubviewToFront:self.textField];
+    }
+}
+
+#pragma mark - BackspaceDetectTextFieldDeleate
+
+- (void)textFieldDidBackspaceOnEmpty:(BackspaceDetectTextField *)textField
+{
+    [self scrollToBottomAnimated:YES];
+    
+    if (self.selectedEntity){
+        NSInteger index = [self.resolvedEntities indexOfObject:self.selectedEntity.obj];
+        if (index != NSNotFound){
+            [self.resolvedEntities removeObjectAtIndex:index];
+            GVEntityTokenView *viewToRemove = [self.resolvedEntityViews objectAtIndex:index];
+            [self.resolvedEntityViews removeObjectAtIndex:index];
+            [viewToRemove removeFromSuperview];
+            
+            if ([self.delegate respondsToSelector:@selector(entitySearchTextView:didDeleteEntityView:entityObj:internalDelete:)])
+                [self.delegate entitySearchTextView:self didDeleteEntityView:viewToRemove entityObj:viewToRemove.obj internalDelete:YES];
+            
+            self.selectedEntity = nil;
+            
+            [self layoutResolvedEntitiesAndTextFieldAnimated:YES];
+        } else {
+            self.selectedEntity = nil;
+        }
+    } else {
+        // if none selected, select the last
+        if ([self.resolvedEntityViews count] > 0){
+            self.selectedEntity = [self.resolvedEntityViews lastObject];
+            
+            [self setSelectedState:YES onEntityView:self.selectedEntity];
+            
+            if ([self.delegate respondsToSelector:@selector(entitySearchTextView:didSelectEntityView:withEntityObj:)])
+                [self.delegate entitySearchTextView:self didSelectEntityView:self.selectedEntity withEntityObj:self.selectedEntity.obj];
+        }
+    }
+}
+
+#pragma mark - UITextFieldDelegates
 
 - (BOOL)textField:(UITextField *)textField shouldChangeCharactersInRange:(NSRange)range replacementString:(NSString *)string
 {
+    if (self.selectedEntity != nil)
+        return NO;
+    
     NSString * currentValue = [textField.text stringByReplacingCharactersInRange:range withString:string];
     
+    [self.searchTimer invalidate];
     self.currentQuery = currentValue;
-
-    if ([self.delegate respondsToSelector:@selector(entitySearchTextView:searchAsYouTypeTriggeredWithQuery:)]){
-        [self.searchTimer invalidate];
+    
+    if ([currentValue length] == 0 && [self.delegate respondsToSelector:@selector(entitySearchTextViewDidClearSearchText:)]) {
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.2 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            [self.delegate entitySearchTextViewDidClearSearchText:self];
+        });
+    } else if ([self.delegate respondsToSelector:@selector(entitySearchTextView:searchAsYouTypeTriggeredWithQuery:)]){
         self.searchTimer = [NSTimer scheduledTimerWithTimeInterval:self.searchAsYouTypeDelaySeconds target:self selector:@selector(timerDidFire) userInfo:nil repeats:NO];
     }
     
+    return YES;
+}
+
+- (BOOL)textFieldShouldReturn:(UITextField *)textField
+{
+    if (self.selectedEntity) {
+        [self resolvedEntityViewWasTapped:self.selectedEntity];
+    }
+    
+    [textField resignFirstResponder];
     return YES;
 }
 

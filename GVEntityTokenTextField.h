@@ -19,17 +19,15 @@
 
 @optional
 
+- (void)entitySearchTextViewDidClearSearchText:(GVEntityTokenTextField *)textView;
 - (void)entitySearchTextView:(GVEntityTokenTextField *)textView searchAsYouTypeTriggeredWithQuery:(NSString *)query;
-
 - (void)entitySearchTextView:(GVEntityTokenTextField *)textView didDeleteEntityView:(GVEntityTokenView *)entityView entityObj:(id)entity internalDelete:(BOOL)internalDelete;
 - (void)entitySearchTextView:(GVEntityTokenTextField *)textView didAddEntityView:(GVEntityTokenView *)entityView entityObj:(id)entity;
-
 - (void)entitySearchTextView:(GVEntityTokenTextField *)textView didSelectEntityView:(GVEntityTokenView *)entityView withEntityObj:(id)entity;
 - (void)entitySearchTextView:(GVEntityTokenTextField *)textView didUnselectEntityView:(GVEntityTokenView *)entityView withEntityObj:(id)entity;
-
 - (void)entitySearchTextView:(GVEntityTokenTextField *)textView didChangeContentHeight:(CGFloat)newHeight;
 
-- (NSString *)entitySearchTextView:(GVEntityTokenTextField *)textView titleForEntity:(id)entity;
+- (NSString *)entitySearchTextView:(GVEntityTokenTextField *)textView titleForEntity:(id)entity itemNumber:(NSInteger)itemNumber;
 
 @end
 @interface GVEntityTokenTextField : UIView
@@ -44,6 +42,7 @@
 @property (nonatomic,strong) UIFont *textFieldFont;
 @property (nonatomic,strong) UIFont *entityFont;
 @property (nonatomic,strong) UIColor *textFieldTextColor;
+@property (nonatomic,strong) UIColor *textFieldCursorColor;
 @property (nonatomic,strong) UIColor *entityBackgroundColor;
 @property (nonatomic,strong) UIColor *entitySelectedBackgroundColor;
 @property (nonatomic,strong) UIColor *entityTextColor;
@@ -51,10 +50,12 @@
 @property (nonatomic,assign) NSTimeInterval searchAsYouTypeDelaySeconds;
 
 @property (readonly) CGFloat startingFrameHeight;
+@property (readonly) NSString *currentSearchQuery;
 
 - (instancetype)initWithDelegate:(id<EntitySearchTextViewDelegate>)delegate;
 
 - (void)addEntity:(id)entityObj;
 - (void)removeEntity:(id)entityObj;
+- (void)removeAllEntities;
 
 @end
