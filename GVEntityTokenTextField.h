@@ -19,6 +19,8 @@
 
 @optional
 
+- (void)entitySearchTextViewDidBeginEditing:(GVEntityTokenTextField *)textView;
+- (void)entitySearchTextViewDidEndEditing:(GVEntityTokenTextField *)textView;
 - (void)entitySearchTextViewDidClearSearchText:(GVEntityTokenTextField *)textView;
 - (void)entitySearchTextView:(GVEntityTokenTextField *)textView searchAsYouTypeTriggeredWithQuery:(NSString *)query;
 - (void)entitySearchTextView:(GVEntityTokenTextField *)textView didDeleteEntityView:(GVEntityTokenView *)entityView entityObj:(id)entity internalDelete:(BOOL)internalDelete;
@@ -57,5 +59,7 @@
 - (void)addEntity:(id)entityObj;
 - (void)removeEntity:(id)entityObj;
 - (void)removeAllEntities;
+- (void)deselectSelectedEntity;
+- (void)resignFirstResponder;
 
 @end

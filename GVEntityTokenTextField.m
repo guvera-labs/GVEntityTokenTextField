@@ -232,6 +232,13 @@
     self.selectedEntity = nil;
 }
 
+- (void)deselectSelectedEntity
+{
+    if (self.selectedEntity) {
+        [self resolvedEntityViewWasTapped:self.selectedEntity];
+    }
+}
+
 - (void)showKeyboardButtonPressed:(id)sender
 {
     [self bringSubviewToFront:self.textField];
@@ -240,9 +247,7 @@
     
     [self.textField becomeFirstResponder];
     
-    if (self.selectedEntity) {
-        [self resolvedEntityViewWasTapped:self.selectedEntity];
-    }
+    [self deselectSelectedEntity];
     
     [self scrollToBottomAnimated:YES];
 }
@@ -612,7 +617,28 @@
     }
 }
 
+- (void)resignFirstResponder {
+    
+    [self.textField resignFirstResponder];
+}
+
 #pragma mark - UITextFieldDelegates
+
+- (void)textFieldDidBeginEditing:(UITextField *)textField {
+    
+    if ([self.delegate respondsToSelector:@selector(entitySearchTextViewDidBeginEditing:)]) {
+        
+        [self.delegate entitySearchTextViewDidBeginEditing:self];
+    }
+}
+
+- (void)textFieldDidEndEditing:(UITextField *)textField {
+    
+    if ([self.delegate respondsToSelector:@selector(entitySearchTextViewDidEndEditing:)]) {
+        
+        [self.delegate entitySearchTextViewDidEndEditing:self];
+    }
+}
 
 - (BOOL)textField:(UITextField *)textField shouldChangeCharactersInRange:(NSRange)range replacementString:(NSString *)string
 {
